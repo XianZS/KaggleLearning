@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# My Ignore Config
+.Trae/
+.claude/
+.IDLE/
+
 # Distribution / packaging
 .Python
 build/
