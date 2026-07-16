@@ -1,5 +1,3 @@
-from sys import deactivate_stack_trampoline
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -43,13 +41,79 @@ class SoftMaxModel(nn.Module):
 model = SoftMaxModel().to(device=device)
 
 # --- set loss function
-loss = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss()
 
 # --- set optim
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # --- train model
-epochs = len(train_dataset) // 64
+# 10轮，每轮拿60000个数据，每单次使用64个数据
+epochs = 10
+_train, _test = 0.0, 0.0
+for epoch in range(1, epochs + 1):
+    # ========= 训练阶段 =========
+    model.train()
+    # 训练总损失
+    train_loss = 0.0
+    # 训练得到的正确样本数
+    train_private = 0
+    # 训练总样本数
+    train_total = 0
+    for images, labels in train_loader:
+        images, labels = images.to(device), labels.to(device)
+        # --- 前向传播
+        # print(labels)
+        # tensor([1, 8, 3, 1, 9, 8, 1, 7, 4, 4, 2, 4, 2, 8, 3, 0, 8, 4, 3, 2, 2, 5, 5, 4,
+        # 2, 5, 6, 5, 7, 6, 3, 4, 4, 7, 6, 2, 2, 3, 4, 3, 3, 9, 1, 6, 7, 4, 5, 7,
+        # 5, 0, 1, 7, 5, 2, 6, 2, 5, 3, 0, 7, 6, 8, 8, 7], device='cuda:0')
+        outputs = model(images)
+        # print(len(outputs))
+        # 64
+        loss = criterion(outputs, labels)
+        # print(loss)
+        # --- 反向传播 + 优化器参数更新
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        # --- 统计指标
+        train_loss += loss.item()
+        # print(len(outputs.data), len(outputs.data[0]))
+        # 64 * 10
+        _, pred_index = torch.max(outputs.data, dim=1)
+        # print(pred_index)
+        # 更新训练总样本数
+        train_total += len(pred_index)
+        # 更新正确样本数
+        res = pred_index == labels
+        train_private += res.sum().item()
+        # print(train_private)
+    # print(train_private, "/", train_total)
+    # ========= 验证阶段 =========
+    model.eval()
+    test_loss = 0.0
+    test_private = 0
+    test_total = 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            test_loss += loss.item()
+            _, pred_index = torch.max(outputs.data, dim=1)
+            test_total += len(pred_index)
+            res = pred_index == labels
+            test_private += res.sum().item()
+    print(f"=== {epoch} / {epochs} ===")
+    print(
+        f"训练准确率:{train_private / train_total * 100:.4f}%\t|\t训练损失:{train_loss}"
+    )
+    print(f"测试准确率:{test_private / test_total * 100:.4f}%\t|\t测试损失:{test_loss}")
+    _train += train_private / train_total * 100
+    _test += test_private / test_total * 100
+    # break
+print(f"训练平均准确率:{_train / epochs}")
+print(f"测试平均准确率:{_test / epochs}")
+torch.save(model, "./save/softmax_model.pth")
 
 
 def test1():
@@ -91,4 +155,5 @@ def test2():
 
 
 if __name__ == "__main__":
-    test2()
+    # test2()
+    pass
